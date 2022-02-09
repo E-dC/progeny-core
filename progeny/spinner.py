@@ -127,17 +127,24 @@ class ProdigyController(object):
         def try_import(root: str, filename: str) -> set:
             o = set()
             fp = os.path.join(root, filename)
-            if fp.endswith('.py') and not fp.startswith('__init__'):
+            if (fp.endswith('.py')
+                and not filename.startswith('_')
+                and not filename.startswith('loader')):
+
+                cls.logger.info(
+                    f"Loading recipes from {fp}")
                 try:
                     o = set(prodigy.core.list_recipes(path=fp))
                 except:
-                    pass
+                    raise
             return o
 
         starting_recipes = set(prodigy.core.list_recipes())
         available_recipes = set(starting_recipes)
 
         if recipe_dir:
+            cls.logger.info(
+                f"Looking for recipes in {os.path.abspath(recipe_dir)}")
             for root, dirs, files in os.walk(recipe_dir):
                 for filename in files:
                     available_recipes.update(try_import(root, filename))
