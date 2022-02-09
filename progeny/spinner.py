@@ -286,7 +286,7 @@ class ProdigyController(object):
         recipe_args: Tuple[str] = ('abcd',),
         recipe_kwargs: Optional[Dict[Any,Any]] = None,
         loader: Optional[str] = 'jsonl',
-        loader_args: Optional[Tuple[str]] = ('datasets/eng_hau_dataset.jsonl',)) -> None:
+        loader_args: Optional[Tuple[str]] = ('datasets/eng_hau_dataset.jsonl',)) -> Tuple[int, str]:
 
         if self.already_has_instance(username):
             raise ValueError(f"{username} already has a process running")
