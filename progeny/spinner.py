@@ -282,11 +282,11 @@ class ProdigyController(object):
 
     def spin(self,
         username: str,
-        recipe: str = 'textcat.manual',
-        recipe_args: Tuple[str] = ('abcd',),
+        recipe: str = 'textcat.rasabot-clustered',
+        recipe_args: Tuple[str] = ('brs-bot', 'configs/brs_bot_config.yml', 'eng'),
         recipe_kwargs: Optional[Dict[Any,Any]] = None,
-        loader: Optional[str] = 'jsonl',
-        loader_args: Optional[Tuple[str]] = ('datasets/eng_hau_dataset.jsonl',)) -> Tuple[int, str]:
+        loader: Optional[str] = None,
+        loader_args: Optional[Tuple[str]] = None) -> Tuple[int, str]:
 
         if self.already_has_instance(username):
             raise ValueError(f"{username} already has a process running")
@@ -317,27 +317,3 @@ class ProdigyController(object):
 
         return (port, session_name)
         # return f'127.0.0.1:{port}/?session={session_name}'
-
-
-
-
-
-# def start_new_instance(
-#     dataset, task, source_file, label_file, port=8080):
-#
-#     os.environ['PRODIGY_BASIC_AUTH_USER'] = 'babar'
-#     os.environ['PRODIGY_BASIC_AUTH_PASS'] = 'babar'
-#
-#     logger.info(f'Starting new instance on port {port}')
-#     p = multiprocessing.Process(
-#         target=prodigy.serve,
-#         name=f'{dataset}-progeny',
-#         args=(f'{task} {dataset} {source_file} --label {label_file}',),
-#         kwargs={'port': port}
-#     )
-#     p.start()
-#
-#     del(os.environ['PRODIGY_BASIC_AUTH_USER'])
-#     del(os.environ['PRODIGY_BASIC_AUTH_PASS'])
-#
-#     return p
