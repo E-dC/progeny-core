@@ -24,6 +24,9 @@ class ProdigyController(object):
         self,
         recipe_dir: Optional[str] = None,
         port_range: Union[range, Tuple[int, int], List[int]] = (8080, 8090)):
+        """ Load recipes, setup a registry of running processes, setup a pool
+            of usable ports, and start a timed cleanup process.
+        """
 
         self.port_range = self.validate_port_range(port_range)
         self.update_available_ports()
@@ -40,11 +43,15 @@ class ProdigyController(object):
         self.scheduled_cleaning(10, 300)
 
     def __del__(self):
+        """ Make sure to stop the cleaning process when destroying instance"""
         self.scheduled_stopper.set()
         self.current_timer.cancel()
 
     def catch_signal(
         self, signum: int, frame: typing.types.FrameType):
+        """ When catching SIGTERM, SIGINT or SIGQUIT, stop any running
+            cleaning process before exiting
+        """
         self.logger.info('Stopping timer')
         self.scheduled_stopper.set()
         self.current_timer.cancel()
@@ -54,6 +61,9 @@ class ProdigyController(object):
         self,
         interval: int,
         timeout: int):
+        """ Cleanup any running process, then set up a new timer at the end of
+            which interval we call `scheduled_cleaning` method again.
+        """
 
         self.logger.debug('Cleaning processes')
         self.cleanup_running_processes(timeout=timeout)
@@ -76,6 +86,7 @@ class ProdigyController(object):
         username: str,
         port: int,
         process: multiprocessing.Process) -> None:
+        """ Add a process and its metadata to the registry."""
 
         self.running_processes.append(
             (process, port, self.get_time(), username)
@@ -88,6 +99,14 @@ class ProdigyController(object):
         session_name: Optional[str] = None,
         port: Optional[int] = None,
         timeout: Optional[int] = None):
+        """ Terminate processes fulfilling one or more of these conditions:
+                - registered username matches `username`
+                - registered session_name matches `session_name`
+                - registered port matches `port`
+                - older than `timeout` (in seconds)
+
+            Leave the arguments as `None` if they are to be ignored.
+        """
 
         earliest = datetime.datetime(year=1, month=1, day=1)
         if timeout:
@@ -99,8 +118,6 @@ class ProdigyController(object):
             cond_session = (process.name == session_name)
             cond_timeout = (start_time < earliest)
 
-            print(p_username, username)
-
             if any((cond_username, cond_port, cond_session, cond_timeout)):
                 process.terminate()
                 time.sleep(1)
@@ -109,6 +126,14 @@ class ProdigyController(object):
                     f'Terminating process {process.name} on port {p_port}')
 
     def cleanup_running_processes(self, **kwargs) -> int:
+        """ Terminate *any* process fulfilling one or more of these conditions:
+                - registered username matches `username`
+                - registered session_name matches `session_name`
+                - registered port matches `port`
+                - older than `timeout` (in seconds)
+
+            and *cleanup* the registry afterward.
+        """
 
         before = len(self.running_processes)
         self.terminate_target_processes(**kwargs)
@@ -124,6 +149,15 @@ class ProdigyController(object):
 
     @classmethod
     def import_recipes(cls, recipe_dir: Optional[str]) -> set:
+        """ Make our custom recipes visible to Prodigy, so that we can call
+            them by recipe name, and without having to give the file name as
+            an argument when spinning an instance.
+
+            Example: we'll be able to call
+                prodigy my.recipe arg1 arg2
+            instead of
+                prodigy my.recipe arg1 arg2 -F filename_containing_my_recipe.py
+        """
         def try_import(root: str, filename: str) -> set:
             o = set()
             fp = os.path.join(root, filename)
@@ -185,20 +219,18 @@ class ProdigyController(object):
 
     @classmethod
     def build_session_name(cls, username: str) -> str:
+        """ Create a random session name to make the instance url unpredictable
+            even if we know the user name. This is because the Prodigy instance
+            itself is not password-protected, and so an attacker with the url
+            would be able to access it.
+        """
         return f'{username}-{hash(random.random())}'
-
-    @classmethod
-    def build_prodigy_command(
-        cls,
-        task: str,
-        dataset: str,
-        source_file: str,
-        label_file: str) -> str:
-
-        return f'{task} {dataset}-progeny {source_file} --label {label_file}'
 
     def construct_loader_command(
         self, loader: Optional[str], *args) -> Optional[str]:
+        """ Construct a *default loader* command which will become part of
+            the full Prodigy command (loader instructions + recipe).
+        """
 
         default_loaders = {
             'jsonl', 'json', 'csv', 'txt',
@@ -213,7 +245,11 @@ class ProdigyController(object):
 
         return command
 
-    def construct_recipe_command(self, recipe: str, *args, **kwargs) -> str:
+    def construct_recipe_command(
+        self, recipe: str, *args, **kwargs) -> str:
+        """ Construct a recipe command, which will become part of the full
+            Prodigy command (loader instructions + recipe).
+        """
         assert recipe in self.available_recipes
 
         command = f"{recipe}"
@@ -229,6 +265,10 @@ class ProdigyController(object):
     def construct_prodigy_command(
         self, recipe_command: str, loader_command: Optional[str]) -> str:
 
+        """ Construct the full Prodigy command, concatenating the recipe and the
+            loader instructions.
+        """
+
         if loader_command:
             return f'{recipe_command} {loader_command}'
 
@@ -241,6 +281,7 @@ class ProdigyController(object):
         config: Dict[str, Any],
         env: Optional[Dict[str, str]] = None,
         session_name: Optional[str] = None) -> None:
+        """ Start serving a Prodigy instance"""
 
         if env and session_name:
             env['PRODIGY_ALLOWED_SESSIONS'] = session_name
@@ -270,6 +311,7 @@ class ProdigyController(object):
         command: str,
         config: Dict[str, Any],
         session_name: str) -> multiprocessing.Process:
+        """ Prepare a new process on which we can start a Prodigy instance"""
 
         env = os.environ.copy()
         p = multiprocessing.Process(
@@ -280,13 +322,35 @@ class ProdigyController(object):
         return p
 
 
-    def spin(self,
+    def spin(
+        self,
         username: str,
-        recipe: str = 'textcat.rasabot-clustered',
-        recipe_args: Tuple[str] = ('brs-bot', 'configs/brs_bot_config.yml', 'eng'),
+        recipe: str,
+        recipe_args: Tuple[str],
         recipe_kwargs: Optional[Dict[Any,Any]] = None,
         loader: Optional[str] = None,
         loader_args: Optional[Tuple[str]] = None) -> Tuple[int, str]:
+        """ Check we can start a new instance, construct the instance arguments
+            and configuration, prepare the process, start it, and update the
+            registry appropriately.
+
+            `recipe_args`'s first element should pretty much always be the
+            dataset name (in which we store the annotations)
+
+            `loader` and `loader_args` are useful when you want to use a default
+            Prodigy recipe and load the data to annotate straight from a flat
+            file (see `construct_loader_command`)
+        """
+
+
+        # username: str,
+        # recipe: str = 'textcat.rasabot-single',
+        # recipe_args: Tuple[str] = ('brs-bot', 'eng'),# 'configs/brs_bot_config.yml'),
+        # recipe_kwargs: Optional[Dict[Any,Any]] = None,
+        # loader: Optional[str] = None,
+        # loader_args: Optional[Tuple[str]] = None) -> Tuple[int, str]:
+
+
 
         if self.already_has_instance(username):
             raise ValueError(f"{username} already has a process running")
