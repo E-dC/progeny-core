@@ -40,7 +40,7 @@ class ProdigyController(object):
         signal.signal(signal.SIGQUIT, self.catch_signal)
 
         self.scheduled_stopper = threading.Event()
-        self.scheduled_cleaning(10, 300)
+        self.scheduled_cleaning(60, 3600)
 
     def __del__(self):
         """ Make sure to stop the cleaning process when destroying instance"""
@@ -341,16 +341,6 @@ class ProdigyController(object):
             Prodigy recipe and load the data to annotate straight from a flat
             file (see `construct_loader_command`)
         """
-
-
-        # username: str,
-        # recipe: str = 'textcat.rasabot-single',
-        # recipe_args: Tuple[str] = ('brs-bot', 'eng'),# 'configs/brs_bot_config.yml'),
-        # recipe_kwargs: Optional[Dict[Any,Any]] = None,
-        # loader: Optional[str] = None,
-        # loader_args: Optional[Tuple[str]] = None) -> Tuple[int, str]:
-
-
 
         if self.already_has_instance(username):
             raise ValueError(f"{username} already has a process running")
