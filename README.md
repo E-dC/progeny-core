@@ -49,6 +49,11 @@ port_used, session_name = progenitor.spin(
     recipe_args=('my_output_dataset',),
     loader='jsonl',
     loader_args=('path/to/my/amazing/dataset.jsonl',))
+
+# The URL of the instance to access uses NAMED SESSIONS:
+# http://0.0.0.0:8080/?session=archibald
+# NOT http://0.0.0.0:8080/
+
 # Annotate stuff for a while
 
 
