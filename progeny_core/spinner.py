@@ -218,13 +218,15 @@ class ProdigyController(object):
         return datetime.datetime.now()
 
     @classmethod
-    def build_session_name(cls, username: str) -> str:
+    def build_session_name(cls, username: str, uniquify: bool = True) -> str:
         """ Create a random session name to make the instance url unpredictable
             even if we know the user name. This is because the Prodigy instance
             itself is not password-protected, and so an attacker with the url
             would be able to access it.
         """
-        return f'{username}-{hash(random.random())}'
+        if uniquify:
+            return f'{username}-{hash(random.random())}'
+        return username
 
     def construct_loader_command(
         self, loader: Optional[str], *args) -> Optional[str]:
@@ -360,11 +362,10 @@ class ProdigyController(object):
             recipe_command, loader_command)
 
         config = {'port': port, 'feed_overlap': False}
-        # session_name = self.build_session_name(username)
-        session_name = username
+        session_name = self.build_session_name(username, uniquify=False)
 
         process = self.get_process(command, config, session_name)
-        print('process created')
+        self.logger.info(f'Process created: ({username}, {session_name}, {port}) ')
         process.start()
 
         self.register_process(username, port, process)
