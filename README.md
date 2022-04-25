@@ -26,9 +26,9 @@ The `core` part of `progeny-core` is because of some unreleased (so far) whose n
 ### Install
 
 ```bash
-git clone https://github.com/E-dC/progeny-core.git # or git@github.com:Ed-C/progeny-core.git
-cd progeny
 # Make a virtual environment if you don't want to cry
+git clone https://github.com/E-dC/progeny-core.git # or git@github.com:Ed-C/progeny-core.git
+cd progeny-core
 # Install dependencies with pip....
 ```
 
@@ -37,7 +37,7 @@ cd progeny
 The important bit is the `ProdigyController` class
 
 ```python
-from progeny.spinner import ProdigyController
+from progeny_core import ProdigyController
 
 progenitor = ProdigyController(
     recipe_dir='path/to/my/special/recipes/if/I/have/any',
