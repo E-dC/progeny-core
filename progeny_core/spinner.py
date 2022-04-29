@@ -9,6 +9,7 @@ from typing import Tuple, Dict, List, Any, Optional, Union
 import threading
 import signal
 import time
+import re
 
 try:
     from .setup_logging import logging
@@ -164,7 +165,10 @@ class ProdigyController(object):
         return before - after
 
     @classmethod
-    def import_recipes(cls, recipe_dir: Optional[str]) -> set:
+    def import_recipes(
+            cls,
+            recipe_dir: Optional[str],
+            exclude_pattern: Optional[str] = '^(_|loader).*') -> set:
         """ Make our custom recipes visible to Prodigy, so that we can call
             them by recipe name, and without having to give the file name as
             an argument when spinning an instance.
@@ -173,13 +177,18 @@ class ProdigyController(object):
                 prodigy my.recipe arg1 arg2
             instead of
                 prodigy my.recipe arg1 arg2 -F filename_containing_my_recipe.py
+
+            Args:
+                recipe_dir (str or None): Directory to load recipes from
+                exclude_pattern (str or None): Regex pattern matching files
+                    to ignore in `recipe_dir`
         """
-        def try_import(root: str, filename: str) -> set:
+        def try_import(root: str, filename: str, exclude_pattern: str) -> set:
             o = set()
             fp = os.path.join(root, filename)
+            print(fp)
             if (fp.endswith('.py')
-                and not filename.startswith('_')
-                and not filename.startswith('loader')):
+                and not re.search(pattern=exclude_pattern, string=filename)):
 
                 cls.logger.info(
                     f"Loading recipes from {fp}")
@@ -192,12 +201,18 @@ class ProdigyController(object):
         starting_recipes = set(prodigy.core.list_recipes())
         available_recipes = set(starting_recipes)
 
+        if not exclude_pattern:
+            exclude_pattern = '^.*$'
+
         if recipe_dir:
             cls.logger.info(
                 f"Looking for recipes in {os.path.abspath(recipe_dir)}")
             for root, dirs, files in os.walk(recipe_dir):
                 for filename in files:
-                    available_recipes.update(try_import(root, filename))
+                    available_recipes.update(
+                        try_import(
+                            root, filename, exclude_pattern)
+                    )
 
         found = available_recipes - starting_recipes
         suffix = f': {sorted(found)}' if found else ''
