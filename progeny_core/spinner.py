@@ -23,7 +23,9 @@ class ProdigyController(object):
     def __init__(
         self,
         recipe_dir: Optional[str] = None,
-        port_range: Union[range, Tuple[int, int], List[int]] = (8080, 8090)):
+        port_range: Union[range, Tuple[int, int], List[int]] = (8080, 8090),
+        scheduled_cleaning_interval: Optional[int] = 60,
+        scheduled_cleaning_timeout: Optional[int] = 3600):
         """ Load recipes, setup a registry of running processes, setup a pool
             of usable ports, and start a timed cleanup process.
         """
@@ -35,27 +37,41 @@ class ProdigyController(object):
 
         self.running_processes = []
 
-        signal.signal(signal.SIGTERM, self.catch_signal)
-        signal.signal(signal.SIGINT, self.catch_signal)
-        signal.signal(signal.SIGQUIT, self.catch_signal)
+        self.scheduled_stopper = None
+        self.setup_scheduled_cleaning(
+            scheduled_cleaning_interval, scheduled_cleaning_timeout)
 
-        self.scheduled_stopper = threading.Event()
-        self.scheduled_cleaning(60, 3600)
+    def setup_scheduled_cleaning(
+        self,
+        interval: Optional[int],
+        timeout: Optional[int]):
+
+        if interval and timeout:
+            signal.signal(signal.SIGTERM, self.catch_signal)
+            signal.signal(signal.SIGINT, self.catch_signal)
+            signal.signal(signal.SIGQUIT, self.catch_signal)
+
+            self.scheduled_stopper = threading.Event()
+            self.scheduled_cleaning(interval, timeout)
 
     def __del__(self):
         """ Make sure to stop the cleaning process when destroying instance"""
-        self.scheduled_stopper.set()
-        self.current_timer.cancel()
+        if self.scheduled_stopper:
+            self.scheduled_stopper.set()
+            self.current_timer.cancel()
+
+        self.cleanup_running_processes(timeout=0.001)
 
     def catch_signal(
         self, signum: int, frame: typing.types.FrameType):
         """ When catching SIGTERM, SIGINT or SIGQUIT, stop any running
             cleaning process before exiting
         """
-        self.logger.info('Stopping timer')
-        self.scheduled_stopper.set()
-        self.current_timer.cancel()
-        exit(1)
+        if self.scheduled_stopper:
+            self.logger.info('Stopping timer')
+            self.scheduled_stopper.set()
+            self.current_timer.cancel()
+            exit(1)
 
     def scheduled_cleaning(
         self,
