@@ -24,8 +24,8 @@ class ProdigyController(object):
         self,
         recipe_dir: Optional[str] = None,
         port_range: Union[range, Tuple[int, int], List[int]] = (8080, 8090),
-        scheduled_cleaning_interval: Optional[int] = 60,
-        scheduled_cleaning_timeout: Optional[int] = 3600):
+        scheduled_cleaning_interval: Optional[int] = None,
+        scheduled_cleaning_timeout: Optional[int] = None):
         """ Load recipes, setup a registry of running processes, setup a pool
             of usable ports, and start a timed cleanup process.
         """
