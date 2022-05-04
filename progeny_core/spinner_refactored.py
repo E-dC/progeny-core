@@ -513,3 +513,28 @@ class Progeny(object):
 
         return (port, session_name)
         # return f'127.0.0.1:{port}/?session={session_name}'
+
+
+class ProdigyController(Progeny):
+
+    def spin(
+            self,
+            username: str,
+            recipe: str,
+            recipe_args: Tuple[str],
+            recipe_kwargs: Optional[Dict[Any,Any]] = None,
+            loader: Optional[str] = None,
+            loader_args: Optional[Tuple[str]] = None) -> Tuple[int, str]:
+
+        loader_kwargs = {}
+        if loader:
+            loader_kwargs = {'loader': loader}
+        if not loader_args:
+            loader_args = tuple()
+
+        return super().spin(
+            username=username,
+            recipe=recipe,
+            recipe_args=recipe_args + loader_args,
+            recipe_kwargs={**recipe_kwargs, **loader_kwargs}
+        )
