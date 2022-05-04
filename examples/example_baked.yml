@@ -1,0 +1,18 @@
+name: 'prebaked_project'
+
+recipe: 'textcat.manual'
+recipe_args:
+    - 'dataset_name'
+    - 'myfile.jsonl'
+recipe_kwargs:
+    loader: 'jsonl'
+    lang: 'en'
+    split_by_lang: True
+
+# or
+# command: 'textcat.manual dataset_name myfile.jsonl --loader jsonl --lang en --split_by_lang'
+
+config:
+    feed_overlap: True
+    auto_count_stream: True
+    # ...
