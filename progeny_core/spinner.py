@@ -182,13 +182,13 @@ class ProdigyAdapter(object):
     def is_recipe(
             cls,
             filename: str,
-            ignored_pattern: Optional[str] = None) -> bool:
+            exclude_pattern: Optional[str] = None) -> bool:
 
         if not filename.endswith('.py'):
             return False
 
-        if (ignored_pattern is None
-            or not re.search(pattern=ignored_pattern, string=filename)):
+        if (exclude_pattern is None
+            or not re.search(pattern=exclude_pattern, string=filename)):
             return True
 
         return False
@@ -219,7 +219,7 @@ class ProdigyAdapter(object):
                 f"Looking for recipes in {os.path.abspath(recipe_dir)}")
             for root, dirs, files in os.walk(recipe_dir):
                 for filename in files:
-                    if cls.is_recipe(filename):
+                    if cls.is_recipe(filename, exclude_pattern):
                         cls.try_import_recipe(os.path.join(root, filename))
 
         available_recipes = set(prodigy.core.list_recipes())
