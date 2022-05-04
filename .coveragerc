@@ -1,0 +1,4 @@
+[run]
+omit = recipes/*
+    progeny_core/__init__.py
+    progeny_core/setup_logging.py
