@@ -482,7 +482,7 @@ class Progeny(object):
             recipe_args: Optional[Union[Tuple[str], List[str]]] = None,
             recipe_kwargs: Optional[Dict[Any, Any]] = None,
             config: Optional[Dict[Any, Any]] = None,
-            uniquify: bool = False) -> Tuple[str, int]:
+            uniquify: bool = False) -> Tuple[int, str]:
             # """ Check we can start a new instance, construct the instance arguments
             #     and configuration, prepare the process, start it, and update the
             #     registry appropriately.
