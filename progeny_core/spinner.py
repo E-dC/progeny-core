@@ -127,6 +127,9 @@ class ProdigyAdapter(object):
         def is_unambiguous(*args):
             return all([data.get(x) is None for x in args])
 
+        if not filepath.endswith('.yml'):
+            return None
+
         try:
             with open(filepath, 'r') as f:
                 data = yaml.safe_load(f)
