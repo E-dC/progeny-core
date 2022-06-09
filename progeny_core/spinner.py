@@ -125,7 +125,8 @@ class ProdigyAdapter(object):
         return command
 
     @classmethod
-    def parse_prebaked(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
+    def parse_prebaked(
+            cls, data: Dict[Any, Any]) -> Tuple[str, Dict[str, Any], str]:
         name = data['name']
         config = data.pop('config', {})
         command = cls.parse_command(**data)
@@ -133,7 +134,8 @@ class ProdigyAdapter(object):
         return (name, command, config)
 
     @classmethod
-    def are_args_none(cls, data: Dict[str, str], args: Iterable[str]) -> bool:
+    def are_args_none(
+            cls, data: Dict[str, Optional[str]], args: Iterable[str]) -> bool:
         return all([data.get(x) is None for x in args])
 
     @classmethod
@@ -144,14 +146,15 @@ class ProdigyAdapter(object):
             return cls.are_args_none(
                 data, ['command', 'recipe', 'recipe_args', 'recipe_kwargs']
             )
-        if schema == 'command': # 'recipe', args, kwargs, prebaked
+        elif schema == 'command': # 'recipe', args, kwargs, prebaked
             return cls.are_args_none(
                 data, ['recipe', 'recipe_args', 'recipe_kwargs']
             )
-        if schema == 'recipe': # prebaked, command
+        elif schema == 'recipe': # prebaked, command
             return cls.are_args_none(
                 data, ['command']
             )
+        return False
 
     @classmethod
     def ensure_unambiguity(
@@ -175,25 +178,22 @@ class ProdigyAdapter(object):
             else:
                 raise AssertionError
         except AssertionError:
-            cls.logger.warning(f'Not a prebaked project file: {filepath}')
+            cls.logger.warning('Not a valid prebaked project file')
             return None
 
         return data
 
     @classmethod
     def try_load_prebaked(cls, filepath: str) -> Optional[Dict[Any, Any]]:
-
-        def is_unambiguous(*args):
-            return all([data.get(x) is None for x in args])
-
         if not filepath.endswith('.yml'):
             return None
 
+        cls.logger.info(f'Attempting to load {filepath}')
         try:
             with open(filepath, 'r') as f:
                 data = yaml.safe_load(f)
         except yaml.error.YAMLError:
-            cls.logger.warning(f'Not a YAML file: {filepath}')
+            cls.logger.warning('Not a valid YAML file')
             return None
 
         return cls.ensure_unambiguity(data, True)
@@ -284,7 +284,7 @@ class ProdigyAdapter(object):
         cls,
         command: str,
         config: Dict[str, Any],
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[os._Environ[str]] = None,
         session_name: Optional[str] = None) -> None:
         """ Start serving a Prodigy instance"""
 
