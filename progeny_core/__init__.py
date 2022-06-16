@@ -1,2 +1,2 @@
-from .spinner import ProdigyController
+__version__ = "0.0.1"
 from .spinner import Progeny

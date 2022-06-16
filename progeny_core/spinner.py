@@ -5,7 +5,7 @@ import socket
 import datetime
 import random
 import typing
-from typing import Tuple, Dict, List, Any, Optional, Union
+from typing import Tuple, Dict, List, Iterable, Any, Optional, Union
 import threading
 import signal
 import time
@@ -52,13 +52,24 @@ class PortManager(object):
         cls,
         port_range: Union[range, Tuple[int, int], List[int]]) -> range:
 
+        """Validate port range.
+
+            A port range of (1, 10) will give you access to ports
+            1 to 10 *non-inclusive*.
+
+            Return a `range` object
+        """
+
         try:
             if isinstance(port_range, (tuple, list)):
                 assert len(port_range) == 2
-                return range(*port_range)
+                port_range = range(*port_range)
             else:
                 assert isinstance(port_range, range)
-                return port_range
+                assert port_range.start > 0
+
+            assert len(port_range) > 1
+            return port_range
 
         except AssertionError:
             raise AssertionError(f'Invalid port range: {port_range}')
@@ -114,7 +125,8 @@ class ProdigyAdapter(object):
         return command
 
     @classmethod
-    def parse_prebaked(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
+    def parse_prebaked(
+            cls, data: Dict[Any, Any]) -> Tuple[str, Dict[str, Any], str]:
         name = data['name']
         config = data.pop('config', {})
         command = cls.parse_command(**data)
@@ -122,35 +134,69 @@ class ProdigyAdapter(object):
         return (name, command, config)
 
     @classmethod
+    def are_args_none(
+            cls, data: Dict[str, Optional[str]], args: Iterable[str]) -> bool:
+        return all([data.get(x) is None for x in args])
+
+    @classmethod
+    def is_unambiguous(
+            cls, data: Dict[str, Optional[str]], schema: str) -> bool:
+
+        if schema == 'prebaked':
+            return cls.are_args_none(
+                data, ['command', 'recipe', 'recipe_args', 'recipe_kwargs']
+            )
+        elif schema == 'command': # 'recipe', args, kwargs, prebaked
+            return cls.are_args_none(
+                data, ['recipe', 'recipe_args', 'recipe_kwargs']
+            )
+        elif schema == 'recipe': # prebaked, command
+            return cls.are_args_none(
+                data, ['command']
+            )
+        return False
+
+    @classmethod
+    def ensure_unambiguity(
+            cls,
+            data: Dict[str, Optional[str]],
+            is_prebaked_data: bool
+    ) -> Optional[Dict[str, Optional[str]]]:
+
+        if is_prebaked_data:
+            try:
+                assert 'name' in data
+            except AssertionError:
+                cls.logger.warning('Not prebaked data: missing a `name` key')
+                return None
+
+        try:
+            if 'command' in data:
+                assert cls.is_unambiguous(data, 'command')
+            elif 'recipe' in data:
+                assert cls.is_unambiguous(data, 'recipe')
+            else:
+                raise AssertionError
+        except AssertionError:
+            cls.logger.warning('Not a valid prebaked project file')
+            return None
+
+        return data
+
+    @classmethod
     def try_load_prebaked(cls, filepath: str) -> Optional[Dict[Any, Any]]:
-
-        def is_unambiguous(*args):
-            return all([data.get(x) is None for x in args])
-
         if not filepath.endswith('.yml'):
             return None
 
+        cls.logger.info(f'Attempting to load {filepath}')
         try:
             with open(filepath, 'r') as f:
                 data = yaml.safe_load(f)
         except yaml.error.YAMLError:
-            cls.logger.warning(f'Not a YAML file: {filepath}')
+            cls.logger.warning('Not a valid YAML file')
             return None
 
-        try:
-            assert 'name' in data
-            if 'command' in data:
-                assert is_unambiguous('recipe', 'recipe_args', 'recipe_kwargs')
-            if 'recipe' in data:
-                assert is_unambiguous('command')
-                assert (
-                    data.get('recipe_args') is not None
-                    or data.get('recipe_kwargs') is not None
-                )
-        except AssertionError:
-            cls.logger.warning(f'Not a prebaked project file: {filepath}')
-            return None
-        return data
+        return cls.ensure_unambiguity(data, True)
 
     @classmethod
     def load_prebaked_projects(
@@ -516,28 +562,3 @@ class Progeny(object):
 
         return (port, session_name)
         # return f'127.0.0.1:{port}/?session={session_name}'
-
-
-class ProdigyController(Progeny):
-
-    def spin(
-            self,
-            username: str,
-            recipe: str,
-            recipe_args: Tuple[str],
-            recipe_kwargs: Optional[Dict[Any,Any]] = None,
-            loader: Optional[str] = None,
-            loader_args: Optional[Tuple[str]] = None) -> Tuple[int, str]:
-
-        loader_kwargs = {}
-        if loader:
-            loader_kwargs = {'loader': loader}
-        if not loader_args:
-            loader_args = tuple()
-
-        return super().spin(
-            username=username,
-            recipe=recipe,
-            recipe_args=recipe_args + loader_args,
-            recipe_kwargs={**recipe_kwargs, **loader_kwargs}
-        )
