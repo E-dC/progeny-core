@@ -284,7 +284,7 @@ class ProdigyAdapter(object):
         cls,
         command: str,
         config: Dict[str, Any],
-        env: Optional[os._Environ[str]] = None,
+        env: Optional[Dict[str, str]] = None,
         session_name: Optional[str] = None) -> None:
         """ Start serving a Prodigy instance"""
 
