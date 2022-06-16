@@ -1,6 +1,4 @@
 import pytest
-import os
-import shutil
 from progeny_core.spinner import PortManager
 
 @pytest.mark.port_manager

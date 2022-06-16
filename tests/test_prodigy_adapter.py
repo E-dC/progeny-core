@@ -1,6 +1,4 @@
 import pytest
-import os
-import shutil
 from progeny_core.spinner import ProdigyAdapter
 
 valid_commands_kwargs = [
@@ -69,7 +67,7 @@ def test_are_args_none(data, none_args, expected):
     [(data, args, True)
      for data, args
      in zip(valid_commands_kwargs, valid_commands_schema_names)])
-def test_are_args_none(data, schema, expected):
+def test_is_unambiguous(data, schema, expected):
     assert (
         ProdigyAdapter.is_unambiguous(data, schema) == expected
     )
