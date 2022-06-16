@@ -1,6 +1,83 @@
-[build-system]
-requires = [
-    "setuptools>=54",
-    "wheel"
+[tool.poetry]
+name = "progeny_core"
+version = "0.0.1"
+description = "Spin, monitor and terminate Prodigy instances"
+authors = ["EdC <etienne@translatorswithoutborders.org>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/E-dC/progeny-core"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers"
 ]
-build-backend = "setuptools.build_meta"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+"ruamel.yaml" = "^0.17.20"
+sanic = "^20.9.0"
+requests = "^2.25.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.2"
+black = "^22.3.0"
+pytest-cov = "^3.0.0"
+pytest-flakes = "^4.0.5"
+commitizen = "^2.27.1"
+pre-commit = "^2.19.0"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.1"
+tag_format = "$version"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -v --flakes --cov progeny_core"
+testpaths = [
+   "tests"
+]
+
+filterwarnings = [
+    "ignore::DeprecationWarning:tensorflow.*:",
+    "ignore::DeprecationWarning:keras_preprocessing.*:",
+    "ignore::DeprecationWarning:flatbuffers.*:",
+    "ignore::UserWarning:tensorflow.*:",
+    "ignore::DeprecationWarning:future.*:"
+]
+
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "adapter: Prodigy Adapter tests",
+    "port_manager: PortManager tests",
+    "registry: ProcessRegistry tests"
+]
+
+[tool.coverage.run]
+omit = [
+    "recipes/*",
+    "progeny_core/__init__.py",
+    "progeny_core/setup_logging.py"
+]
+
+[tool.black]
+line-length = 90
+target-version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+(
+  /(
+      \.eggs
+    | \.git
+    | \.mypy_cache
+    | _build
+    | build
+    | dist
+  )/
+)
+'''
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
