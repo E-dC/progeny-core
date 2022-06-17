@@ -12,16 +12,22 @@ import time
 import re
 import ruamel.yaml as yaml
 
-try:
-    from .setup_logging import logging
-except ImportError:
-    from setup_logging import logging
+from loguru import logger
+import sys
+logger.add(
+    sys.stdout,
+    colorize=True,
+    format="{time} - {name} - {level} - {message}",
+    filter="spinner",
+    level="INFO"
+)
 
 
 class PortManager(object):
     """Manage ports for ProdigyController"""
 
-    logger = logging.getLogger(__name__)
+    # logger = logging.getLogger(__name__)
+    # logger.propagate = False
 
     def __init__(
             self,
@@ -44,7 +50,7 @@ class PortManager(object):
             self.available_ports.remove(port)
             return port
         else:
-            self.logger.error("No ports available")
+            logger.error("No ports available")
             raise RuntimeError("No ports available")
 
     @classmethod
@@ -83,7 +89,8 @@ class PortManager(object):
 
 class ProdigyAdapter(object):
 
-    logger = logging.getLogger(__name__)
+    # logger = logging.getLogger(__name__)
+    # logger.propagate = False
 
     def __init__(
         self,
@@ -167,7 +174,7 @@ class ProdigyAdapter(object):
             try:
                 assert 'name' in data
             except AssertionError:
-                cls.logger.warning('Not prebaked data: missing a `name` key')
+                logger.warning('Not prebaked data: missing a `name` key')
                 return None
 
         try:
@@ -178,7 +185,7 @@ class ProdigyAdapter(object):
             else:
                 raise AssertionError
         except AssertionError:
-            cls.logger.warning('Not a valid prebaked project file')
+            logger.warning('Not a valid prebaked project file')
             return None
 
         return data
@@ -188,12 +195,12 @@ class ProdigyAdapter(object):
         if not filepath.endswith('.yml'):
             return None
 
-        cls.logger.info(f'Attempting to load {filepath}')
+        logger.info(f'Attempting to load {filepath}')
         try:
             with open(filepath, 'r') as f:
                 data = yaml.safe_load(f)
         except yaml.error.YAMLError:
-            cls.logger.warning('Not a valid YAML file')
+            logger.warning('Not a valid YAML file')
             return None
 
         return cls.ensure_unambiguity(data, True)
@@ -204,7 +211,7 @@ class ProdigyAdapter(object):
 
         o = {}
         if prebaked_dir:
-            cls.logger.info(
+            logger.info(
                 f"Looking for prebaked projects in {os.path.abspath(prebaked_dir)}")
             for root, dirs, files in os.walk(prebaked_dir):
                 for filename in files:
@@ -215,13 +222,13 @@ class ProdigyAdapter(object):
 
         found = set(o.keys())
         suffix = f': {sorted(found)}' if found else ''
-        cls.logger.info(
+        logger.info(
             f"{len(found)} prebaked projects found{suffix}")
         return o
 
     @classmethod
     def try_import_recipe(cls, filepath: str) -> None:
-        cls.logger.info(f"Loading recipes from {filepath}")
+        logger.info(f"Loading recipes from {filepath}")
         try:
             return prodigy.core.import_code(filepath)
         except:
@@ -264,7 +271,7 @@ class ProdigyAdapter(object):
 
         starting_recipes = set(prodigy.core.list_recipes())
         if recipe_dir:
-            cls.logger.info(
+            logger.info(
                 f"Looking for recipes in {os.path.abspath(recipe_dir)}")
             for root, dirs, files in os.walk(recipe_dir):
                 for filename in files:
@@ -274,7 +281,7 @@ class ProdigyAdapter(object):
         available_recipes = set(prodigy.core.list_recipes())
         found = available_recipes - starting_recipes
         suffix = f': {sorted(found)}' if found else ''
-        cls.logger.info(
+        logger.info(
             f"{len(found)} additional recipes found{suffix}")
 
         return available_recipes
@@ -296,7 +303,8 @@ class ProdigyAdapter(object):
 
 class ProcessRegistry(object):
 
-    logger = logging.getLogger(__name__)
+    # logger = logging.getLogger(__name__)
+    # logger.propagate = False
 
     def __init__(
             self,
@@ -339,7 +347,7 @@ class ProcessRegistry(object):
             cleaning process before exiting
         """
         if self.scheduled_stopper:
-            self.logger.info('Stopping timer')
+            logger.info('Stopping timer')
             self.scheduled_stopper.set()
             self.current_timer.cancel()
             exit(1)
@@ -352,7 +360,7 @@ class ProcessRegistry(object):
             which interval we call `scheduled_cleaning` method again.
         """
 
-        self.logger.debug('Cleaning processes')
+        logger.debug('Cleaning processes')
         self.cleanup_running_processes(timeout=timeout)
 
         if not self.scheduled_stopper.is_set():
@@ -403,7 +411,7 @@ class ProcessRegistry(object):
                 process.terminate()
                 time.sleep(1)
                 # print(f'Terminating process {process.name} on port {p_port}')
-                self.logger.info(
+                logger.info(
                     f'Terminating process {process.name} on port {p_port}')
 
     def cleanup_running_processes(self, **kwargs) -> int:
@@ -430,7 +438,7 @@ class ProcessRegistry(object):
 
     def already_has_instance(self, username: str) -> bool:
         if username in [x for (_, _, _, x) in self.running_processes]:
-            self.logger.error(
+            logger.error(
                 f"{username} already started a Prodigy instance")
             return True
         return False
@@ -442,7 +450,8 @@ class ProcessRegistry(object):
 class Progeny(object):
     """Spin, monitor and destroy Prodigy instances."""
 
-    logger = logging.getLogger(__name__)
+    # logger = logging.getLogger(__name__)
+    # logger.propagate = False
 
     def __init__(
             self,
@@ -555,7 +564,7 @@ class Progeny(object):
         config = {**config, 'port': port}
 
         process = self.get_process(command, config, session_name)
-        self.logger.info(f'Process created: ({username}, {session_name}, {port}) ')
+        logger.info(f'Process created: ({username}, {session_name}, {port}) ')
         process.start()
 
         self.registry.register_process(username, port, process)
