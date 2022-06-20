@@ -1,13 +1,14 @@
 import requests
 import datetime
 import sanic
+import json
 
 from loguru import logger
 import sys
 logger.add(
     sys.stdout,
     colorize=True,
-    format="{time} - {name} - {level} - [{host}]: {request} {message} {status} {byte}",
+    format="[{time}] [{level: <8}] ({name: ^15}) | [{host}]: {request} {message} {status} {byte}",
     filter="cli_serve",
     level="DEBUG"
 )
@@ -59,6 +60,7 @@ async def set_port_from_cookie(request):
         request.ctx.port = request.cookies.get('prodigy_port')
     except:
         pass
+    logger.warning(request.headers)
 
 @app.get('/start_session/<port>')
 def start_session(request, port):
@@ -67,15 +69,11 @@ def start_session(request, port):
     res.cookies['prodigy_port']['expires'] = datetime.datetime(
         year=9999, month=12, day=31, hour=23, minute=59, second=59
     )
-    # res.cookies['prodigy_port']['max-age'] = 60
-    logger.warning(res.headers)
-    logger.warning(res.cookies)
     return res
 
 @app.get('/mylayerserver')
 def get_root(request):
     logger.debug(request.headers)
-    logger.debug(request.headers.getall('cookie'))
     return html_res(fetch('get', request, '/'))
 
 @app.get('/fonts/<font_file>')
@@ -102,9 +100,11 @@ def get_version(request):
 
 @app.get('/get_questions')
 def get_questions(request):
-    logger.debug(request.headers)
-    logger.debug(request.headers.getall('cookie'))
-    return json_res(fetch('get', request, '/get_questions'))
+    res = json_res(fetch('get', request, '/get_questions'))
+    logger.debug(
+        f"{len(json.loads(res.body)['tasks'])} new tasks fetched"
+    )
+    return res
 
 @app.get('/project')
 def get_project(request):
@@ -118,7 +118,10 @@ def get_project_session(request, session_id):
 
 @app.post('/get_session_questions')
 def get_session_questions(request):
-    return json_res(fetch('post', request, '/get_session_questions', json=True))
+    res = json_res(fetch('post', request, '/get_session_questions', json=True))
+    logger.debug(
+        f"{len(json.loads(res.body)['tasks'])} new tasks fetched")
+    return res
 
 @app.post('/set_session_aliases')
 def set_session_aliases(request):
@@ -130,21 +133,17 @@ def end_session(request):
 
 @app.post('/validate_answer')
 def validate_answer(request):
-    logger.debug(request.cookies)
     return json_res(fetch('post', request, '/validate_answer', json=True))
 
 @app.post('/give_answers')
 def give_answers(request):
-    logger.debug(request.headers)
-    logger.debug(request.headers.getall('cookie'))
-    logger.debug(request.json)
+    n = len(json.loads(request.body)['answers'])
     res = json_res(fetch('post', request, '/give_answers', json=True))
-
+    logger.debug(f"{n} answers to be sent to DB")
     return res
 
 def run(args):
     port = args.get('--port', 9000)
-    # logger.setLevel(logging.DEBUG)
 
     app.run(
         host='0.0.0.0',
