@@ -61,11 +61,14 @@ def fetch(
 
 @app.middleware("request")
 async def set_port_from_cookie(request):
+    log_port = 'no prodigy port found'
     try:
         request.ctx.port = request.cookies.get('prodigy_port')
+        log_port = f'{request.ctx.port}'
     except:
         pass
-    logger.warning(request.headers)
+    request.ctx.log_info = f'{request.headers.get("x-forwarded-for", "unknown client ip")} - {log_port} - {request.path}'
+    logger.debug(request.ctx.log_info)
 
 @app.get('/start_session/<port>')
 def start_session(request, port):
