@@ -5,13 +5,18 @@ import json
 
 from loguru import logger
 import sys
+
+fmt = "[{time}] [{level: <8}] ({name: ^15}) | [{host}]: {request} {message} {status} {byte}"
+
 logger.add(
     sys.stdout,
+    format=fmt,
+    filter='cli_serve',
+    level='DEBUG',
     colorize=True,
-    format="[{time}] [{level: <8}] ({name: ^15}) | [{host}]: {request} {message} {status} {byte}",
-    filter="cli_serve",
-    level="DEBUG"
+    enqueue=True
 )
+logger.add("logs.log", level='DEBUG', enqueue=True)
 
 
 app = sanic.Sanic('middleware_progeny')
@@ -73,8 +78,9 @@ def start_session(request, port):
 
 @app.get('/mylayerserver')
 def get_root(request):
-    logger.debug(request.headers)
-    return html_res(fetch('get', request, '/'))
+    res = html_res(fetch('get', request, '/'))
+    logger.info(f'{request.ctx.log_info} | Loaded the Prodigy interface') 
+    return res
 
 @app.get('/fonts/<font_file>')
 def get_fonts(request, font_file):
@@ -101,8 +107,8 @@ def get_version(request):
 @app.get('/get_questions')
 def get_questions(request):
     res = json_res(fetch('get', request, '/get_questions'))
-    logger.debug(
-        f"{len(json.loads(res.body)['tasks'])} new tasks fetched"
+    logger.info(
+        f"{request.ctx.log_info} | {len(json.loads(res.body)['tasks'])} new tasks fetched"
     )
     return res
 
@@ -119,8 +125,8 @@ def get_project_session(request, session_id):
 @app.post('/get_session_questions')
 def get_session_questions(request):
     res = json_res(fetch('post', request, '/get_session_questions', json=True))
-    logger.debug(
-        f"{len(json.loads(res.body)['tasks'])} new tasks fetched")
+    logger.info(
+        f"{request.ctx.log_info} | {len(json.loads(res.body)['tasks'])} new tasks fetched")
     return res
 
 @app.post('/set_session_aliases')
@@ -139,7 +145,7 @@ def validate_answer(request):
 def give_answers(request):
     n = len(json.loads(request.body)['answers'])
     res = json_res(fetch('post', request, '/give_answers', json=True))
-    logger.debug(f"{n} answers to be sent to DB")
+    logger.info(f"{request.ctx.log_info} | {n} answers to be sent to DB")
     return res
 
 def run(args):
