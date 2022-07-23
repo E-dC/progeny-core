@@ -37,6 +37,10 @@ pre-commit = "^2.19.0"
 name = "cz_conventional_commits"
 version = "0.0.1"
 tag_format = "$version"
+version_files = [
+    "progeny_core/__init__.py:__version__",
+    "pyproject.toml:^version"
+]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
