@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "progeny_core"
-version = "0.0.2"
+version = "0.1.0"
 description = "Spin, monitor and terminate Prodigy instances"
 authors = ["EdC <etienne@translatorswithoutborders.org>"]
 license = "MIT"
@@ -35,7 +35,7 @@ pre-commit = "^2.19.0"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.2"
+version = "0.1.0"
 tag_format = "$version"
 version_files = [
     "progeny_core/__init__.py:__version__",
