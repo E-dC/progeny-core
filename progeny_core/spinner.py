@@ -11,6 +11,7 @@ import signal
 import time
 import re
 import ruamel.yaml as yaml
+import sqlite3
 
 from loguru import logger
 import sys
@@ -303,9 +304,6 @@ class ProdigyAdapter(object):
 
 class ProcessRegistry(object):
 
-    # logger = logging.getLogger(__name__)
-    # logger.propagate = False
-
     def __init__(
             self,
             port_manager: PortManager,
@@ -313,12 +311,30 @@ class ProcessRegistry(object):
             scheduled_cleaning_timeout: Optional[int]):
 
         self.port_manager = port_manager
-        self.running_processes = []
+        self.db_name = "progeny-processes.db"
+        self.attach_to_db()
 
         self.scheduled_stopper = None
         self.setup_scheduled_cleaning(
             scheduled_cleaning_interval, scheduled_cleaning_timeout)
 
+
+    def attach_to_db(self):
+        self.connection = sqlite3.connect(self.db_name)
+        self.connection.row_factory = sqlite3.Row
+        stmt = (
+            "CREATE TABLE IF NOT EXISTS Process("
+            "    identifier text PRIMARY KEY, "
+            "    session_name text, "
+            "    port int NOT NULL UNIQUE, "
+            "    pid int NOT NULL UNIQUE, "
+            "    expiry_timestamp int NOT NULL)"
+        )
+
+        cur = self.connection.cursor()
+        cur.execute(stmt)
+        self.connection.commit()
+        return None
 
     def setup_scheduled_cleaning(
         self,
@@ -339,7 +355,8 @@ class ProcessRegistry(object):
             self.scheduled_stopper.set()
             self.current_timer.cancel()
 
-        self.cleanup_running_processes(timeout=0.001)
+        self.cleanup_running_processes(allow_unsafe=True)
+        os.remove(self.db_name)
 
     def catch_signal(
         self, signum: int, frame: typing.types.FrameType):
@@ -350,7 +367,10 @@ class ProcessRegistry(object):
             logger.info('Stopping timer')
             self.scheduled_stopper.set()
             self.current_timer.cancel()
-            exit(1)
+
+        self.cleanup_running_processes(allow_unsafe=True)
+        os.remove(self.db_name)
+        exit(1)
 
     def scheduled_cleaning(
         self,
@@ -372,74 +392,142 @@ class ProcessRegistry(object):
 
     def register_process(
         self,
-        username: str,
+        identifier: str,
+        session_name: Optional[str],
         port: int,
-        process: multiprocessing.Process) -> None:
+        process: Union[multiprocessing.Process, int],
+        expiry_timestamp: int = 8_000_000_000) -> None:
         """ Add a process and its metadata to the registry."""
 
-        self.running_processes.append(
-            (process, port, self.get_time(), username)
+        if isinstance(process, multiprocessing.Process):
+            assert process.is_alive()
+            pid = process.pid
+        else:
+            pid = process
+
+        stmt = (
+            "INSERT INTO Process (identifier, session_name, port, pid, expiry_timestamp) "
+            "VALUES (?, ?, ?, ?, ?)"
         )
+
+        cur = self.connection.cursor()
+        cur.execute(
+            stmt,
+            (identifier, session_name, port, pid, round(expiry_timestamp))
+        )
+        self.connection.commit()
         self.port_manager.update_available_ports()
 
-    def terminate_target_processes(
+        return None
+
+    def conds_maker(self, operator: str = "OR", **kwargs) -> Tuple[str, Tuple[str]]:
+        """Build a WHERE SQL prepared statement out of **kwargs
+                - registered identifier matches `identifier`
+                - registered session_name matches `session_name`
+                - registered port matches `port`
+                - registered pid matches `pid`
+                - registered process is older than `older_than` (in seconds)
+
+            To ignore arguments, omit them or set as None.
+        """
+        assert operator in ("OR", "AND")
+        conds = []
+        values = []
+        for k, v in kwargs.items():
+            if kwargs[k]:
+                if k == "older_than":
+                    conds.append(f"{k} > ?")
+                elif k in ["identifier", "session_name", "pid", "port"]:
+                    conds.append(f"{k} = ?")
+                values.append(v)
+
+        conds_stmt = f" {operator} ".join(conds)
+        if conds_stmt:
+            conds_stmt = f"WHERE {conds_stmt}"
+        values = tuple(values)
+
+        return (conds_stmt, values)
+
+    def is_safe(self, conds_stmt: str, allow_unsafe: bool) -> bool:
+        if conds_stmt:
+            return True
+
+        if allow_unsafe:
+            return True
+
+        logger.warning(
+            "All records selected (no conditions were set), "
+            "but `allow_unsafe` is False: not selecting or deleting anything"
+        )
+        return False
+
+
+    def find_process_from_registry(
         self,
-        username: Optional[str] = None,
-        session_name: Optional[str] = None,
-        port: Optional[int] = None,
-        timeout: Optional[int] = None):
-        """ Terminate processes fulfilling one or more of these conditions:
-                - registered username matches `username`
-                - registered session_name matches `session_name`
-                - registered port matches `port`
-                - older than `timeout` (in seconds)
-
-            Leave the arguments as `None` if they are to be ignored.
+        allow_unsafe: bool = False,
+        **kwargs
+    ) -> List[Dict[str, Union[str, int]]]:
+        """ SELECT one or more processes from the registry.
+            See `self.conds_maker` for details on how selection is made
         """
 
-        earliest = datetime.datetime(year=1, month=1, day=1)
-        if timeout:
-            earliest = self.get_time() - datetime.timedelta(seconds=timeout)
+        conds_stmt, values = self.conds_maker(**kwargs)
+        if not self.is_safe(conds_stmt, allow_unsafe):
+            return []
 
-        for process, p_port, start_time, p_username in self.running_processes:
-            cond_username = (p_username == username)
-            cond_port = (p_port == port)
-            cond_session = (process.name == session_name)
-            cond_timeout = (start_time < earliest)
+        stmt = f"SELECT * FROM Process {conds_stmt}"
 
-            if any((cond_username, cond_port, cond_session, cond_timeout)):
-                process.terminate()
-                time.sleep(1)
-                # print(f'Terminating process {process.name} on port {p_port}')
-                logger.info(
-                    f'Terminating process {process.name} on port {p_port}')
+        cur = self.connection.cursor()
+        res = cur.execute(stmt, values).fetchall()
 
-    def cleanup_running_processes(self, **kwargs) -> int:
-        """ Terminate *any* process fulfilling one or more of these conditions:
-                - registered username matches `username`
-                - registered session_name matches `session_name`
-                - registered port matches `port`
-                - older than `timeout` (in seconds)
+        return [dict(r) for r in res]
 
-            and *cleanup* the registry afterward.
+    def delete_process_from_registry(
+        self,
+        allow_unsafe: bool = False,
+        **kwargs
+    ) -> None:
+        """ DELETE one or more processes from the registry.
+            See `self.conds_maker` for details on how selection is made
         """
 
-        before = len(self.running_processes)
-        self.terminate_target_processes(**kwargs)
+        conds_stmt, values = self.conds_maker(**kwargs)
+        if not self.is_safe(conds_stmt, allow_unsafe):
+            return None
 
+        stmt = f"DELETE FROM Process {conds_stmt}"
+
+        cur = self.connection.cursor()
+        cur.execute(stmt, values)
+        self.connection.commit()
+
+        return None
+
+    def terminate_target_process(self, pid: int) -> None:
+        os.kill(pid, signal.SIGTERM)
+        time.sleep(1)
+        logger.info(f'Terminated process {pid}')
+        return None
+
+    def cleanup_running_processes(self, allow_unsafe=False, **kwargs) -> int:
+        """ Terminate one or more processes and clean them up from the registry.
+            See `self.conds_maker` for details on how selection is made
+        """
+
+        records = self.find_process_from_registry(allow_unsafe=allow_unsafe, **kwargs)
+        for record in records:
+            logger.info(f'Cleaning up process: {record}...')
+            self.terminate_target_process(record["pid"])
+
+        self.delete_process_from_registry(allow_unsafe=allow_unsafe, **kwargs)
         self.port_manager.update_available_ports()
-        self.running_processes = [
-            (process, p, s, u)
-            for (process, p, s, u) in self.running_processes
-            if process.is_alive()
-        ]
-        after = len(self.running_processes)
-        return before - after
 
-    def already_has_instance(self, username: str) -> bool:
-        if username in [x for (_, _, _, x) in self.running_processes]:
+        return len(records)
+
+    def already_has_instance(self, identifier: str) -> bool:
+        if self.find_process_from_registry(identifier=identifier):
             logger.error(
-                f"{username} already started a Prodigy instance")
+                f"{identifier} already started a Prodigy instance")
             return True
         return False
 
@@ -474,15 +562,15 @@ class Progeny(object):
         self.cleanup_running_processes = self.registry.cleanup_running_processes
 
     @classmethod
-    def build_session_name(cls, username: str, uniquify: bool = True) -> str:
+    def build_session_name(cls, identifier: str, uniquify: bool = True) -> str:
         """ Create a random session name to make the instance url unpredictable
-            even if we know the user name. This is because the Prodigy instance
+            even if we know the identifier. This is because the Prodigy instance
             itself is not password-protected, and so an attacker with the url
             would be able to access it.
         """
         if uniquify:
-            return f'{username}-{hash(random.random())}'
-        return username
+            return f'{identifier}-{hash(random.random())}'
+        return identifier
 
 
     def get_process(
@@ -533,7 +621,7 @@ class Progeny(object):
 
     def spin(
             self,
-            username: str,
+            identifier: str,
             command: Optional[str] = None,
             prebaked: Optional[str] = None,
             recipe: Optional[str] = None,
@@ -556,18 +644,24 @@ class Progeny(object):
         command, config = self.get_command_and_config(
             command, prebaked, recipe, recipe_args, recipe_kwargs, config)
 
-        if self.registry.already_has_instance(username):
-            raise ValueError(f"{username} already has a process running")
+        if self.registry.already_has_instance(identifier):
+            raise ValueError(f"{identifier} already has a process running")
         port = self.port_manager.allocate_port()
-        session_name = self.build_session_name(username, uniquify=uniquify)
+        session_name = self.build_session_name(identifier, uniquify=uniquify)
 
         config = {**config, 'port': port}
 
         process = self.get_process(command, config, session_name)
-        logger.info(f'Process created: ({username}, {session_name}, {port}) ')
+        logger.info(f'Process created: ({identifier}, {session_name}, {port}) ')
         process.start()
 
-        self.registry.register_process(username, port, process)
+        self.registry.register_process(
+            identifier,
+            session_name,
+            port,
+            process
+        )
+
 
         return (port, session_name)
         # return f'127.0.0.1:{port}/?session={session_name}'
