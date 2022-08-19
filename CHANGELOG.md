@@ -1,3 +1,16 @@
+## 0.2.0 (2022-08-19)
+
+### Feat
+
+- **cli_serve**: make sessions accessible by identifier rather than port, improve logging, support session names
+- **cli_main**: make the configurable middleware server callable from CLI, fix doc
+- **cli_server**: make server configurable from a YAML file, spin instances when server is started
+- **spinner**: make progeny_core maintain the process registry as a temporary SQLite db
+
+### Fix
+
+- **cli_serve**: fix a few bugs at app setup, wait 1 sec between each instance set up to avoid them binding to the same ports
+
 ## 0.1.0 (2022-07-23)
 
 ### Fix
