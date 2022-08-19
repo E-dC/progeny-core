@@ -1,3 +1,9 @@
+## 0.2.2 (2022-08-19)
+
+### Fix
+
+- **cli_serve**: fix bugs regarding routes paths so that Progeny works also behind a reverse proxy
+
 ## 0.2.1 (2022-08-19)
 
 ### Fix
