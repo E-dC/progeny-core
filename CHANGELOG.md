@@ -1,3 +1,10 @@
+## 0.2.1 (2022-08-19)
+
+### Fix
+
+- **cli_serve**: prevent double slashes in URL used by `fetch`
+- **cli_serve**: prevent double slashes in URL used by `fetch`
+
 ## 0.2.0 (2022-08-19)
 
 ### Feat
