@@ -62,8 +62,8 @@ def fetch(
     if json:
         payload = req.json
 
-    path = f"{pathf.format(**kwargs).lstrip('/')}"
-    url = f"{protocol}://{host}:{port}/{path}"
+    path = pathf.format(**kwargs)
+    url = f"{protocol}://{host}:{port}{path}"
 
     if method == "get":
         return requests.get(url)
