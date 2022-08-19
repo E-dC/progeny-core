@@ -62,30 +62,54 @@ def fetch(
     if json:
         payload = req.json
 
-    url = f'{protocol}://{host}:{port}/{pathf.format(**kwargs).lstrip("/")}'
+    path = f"{pathf.format(**kwargs).lstrip('/')}"
+    url = f"{protocol}://{host}:{port}/{path}"
+
     if method == "get":
         return requests.get(url)
     elif method == "post":
         return requests.post(url, json=payload)
 
 
+def format_log(ip, identifier, port, session_name, path):
+    if not ip:
+        ip = "unknown client ip"
+    if not identifier:
+        identifier = "unknown identifier"
+    if not port:
+        port = "unknown port"
+    if not session_name:
+        session_name = "no named session"
+
+    return f"{ip} - {identifier} - {port} - {session_name} - {path}"
+
+
 @app.middleware("request")
 async def set_port_from_cookie(request):
-    log_port = "no prodigy port found"
-    try:
-        request.ctx.port = request.cookies.get("prodigy_port")
-        log_port = f"{request.ctx.port}"
-    except:
-        pass
-    request.ctx.log_info = f'{request.headers.get("x-forwarded-for", "unknown client ip")} - {log_port} - {request.path}'
+
+    identifier = request.cookies.get("progeny_identifier")
+    instance_details = app.ctx.instances.get(identifier, {})
+
+    request.ctx.port = instance_details.get("port")
+    request.ctx.session_name = instance_details.get("session_name")
+    request.ctx.identifier = identifier
+
+    request.ctx.log_info = format_log(
+        ip=request.headers.get("x-forwarded-for", "unknown client ip"),
+        identifier=request.ctx.identifier,
+        port=request.ctx.port,
+        session_name=request.ctx.session_name,
+        path=request.path,
+    )
     logger.debug(request.ctx.log_info)
 
 
-@app.get("/start_session/<port>")
-def start_session(request, port):
+@app.get("/start_session/<identifier>")
+def start_session(request, identifier):
     res = sanic.response.redirect("/mylayerserver")
-    res.cookies["prodigy_port"] = port
-    res.cookies["prodigy_port"]["expires"] = datetime.datetime(
+
+    res.cookies["progeny_identifier"] = identifier
+    res.cookies["progeny_identifier"]["expires"] = datetime.datetime(
         year=9999, month=12, day=31, hour=23, minute=59, second=59
     )
     return res
@@ -93,7 +117,11 @@ def start_session(request, port):
 
 @app.get("/mylayerserver")
 def get_root(request):
-    res = html_res(fetch("get", request, "/"))
+    path = "/"
+    if request.ctx.session_name:
+        path = f"/?session={request.ctx.session_name}"
+
+    res = html_res(fetch("get", request, path))
     logger.info(f"{request.ctx.log_info} | Loaded the Prodigy interface")
     return res
 
@@ -205,7 +233,7 @@ def run(args):
 
     for identifier, params in config["instances"].items():
         port, session_name = progenitor.spin(identifier=identifier, **params)
-        app.ctx.instances["identifier"] = {
+        app.ctx.instances[identifier] = {
             "port": port,
             "session_name": session_name,
         }
