@@ -22,14 +22,9 @@ USAGE[
 ] = """Start a middleware server for Prodigy instances.
 
 Usage:
-  progeny serve [-h] [--port <port>]
-
-Details:
-  The prodigy instances accessible must have been started *before* running
-  this command.
+  progeny serve [-h] <config>
 
 Optional arguments:
-  -p --port=<port>      Set port number [default: 9000].
   -h --help             Show this
 """
 SUBCOMMANDS = [sub for sub in USAGE if sub != "main"]
