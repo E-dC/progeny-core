@@ -1,0 +1,28 @@
+app:
+    host: "0.0.0.0"
+    port: 9000
+    debug: false
+    workers: 2
+
+progeny:
+    port_range:
+        - 8080
+        - 8090
+    recipe_dir: null
+    prebaked_dir: "./prebaked"
+    scheduled_cleaning_interval: null
+    scheduled_cleaning_timeout: null
+
+instances:
+    alice:
+        prebaked: "test"
+        uniquify: false
+        config:
+            feed_overlap: false
+    bob:
+        command: "textcat.manual mytest /absolute/path/to/the/data.jsonl --label POL,TECH,SCI"
+        uniquify: false
+
+        config:
+            feed_overlap: false
+
