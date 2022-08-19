@@ -2,16 +2,22 @@ import requests
 import datetime
 import sanic
 import json
-
+import ruamel.yaml as yaml
+from typing import Dict, List, Any, Optional
 from loguru import logger
 import sys
 
-fmt = (
-    "[{time}] [{level: <8}] ({name: ^15}) | [{host}]: {request} {message} {status} {byte}"
-)
+from progeny_core.spinner import Progeny
+
+fmt = "[{time}] [{level: <8}] ({name: ^15}) | [{host}]: {request} {message} {status} {byte}"
 
 logger.add(
-    sys.stdout, format=fmt, filter="cli_serve", level="DEBUG", colorize=True, enqueue=True
+    sys.stdout,
+    format=fmt,
+    filter="cli_serve",
+    level="DEBUG",
+    colorize=True,
+    enqueue=True,
 )
 logger.add("logs.log", level="DEBUG", enqueue=True)
 
@@ -46,7 +52,9 @@ def text_res(res):
     return make_response(res, "text")
 
 
-def fetch(method, req, pathf, protocol="http", host="0.0.0.0", json=False, **kwargs):
+def fetch(
+    method, req, pathf, protocol="http", host="0.0.0.0", json=False, **kwargs
+):
 
     port = req.ctx.port
     payload = {}
@@ -130,7 +138,9 @@ def get_project(request):
 
 @app.get("/project/<session_id>")
 def get_project_session(request, session_id):
-    return json_res(fetch("get", request, "/project/{session_id}", session_id=session_id))
+    return json_res(
+        fetch("get", request, "/project/{session_id}", session_id=session_id)
+    )
 
 
 @app.post("/get_session_questions")
@@ -165,7 +175,40 @@ def give_answers(request):
     return res
 
 
+def parse_config(config_filepath: str) -> Dict[str, Any]:
+    with open(config_filepath, "r") as f:
+        config = yaml.YAML(typ="safe").load(f)
+
+    assert {"app", "progeny", "instances"}.issubset(set(config.keys()))
+    assert {"host", "port"}.issubset(set(config["app"].keys()))
+
+    try:
+        assert config["progeny"].get("scheduled_cleaning_interval") is None
+        assert config["progeny"].get("scheduled_cleaning_timeout") is None
+    except AssertionError:
+        raise NotImplementedError(
+            "Middleware doesn't yet support on-demand instances."
+        )
+
+    return config
+
+
 def run(args):
-    port = args.get("--port", 9000)
+
+    config = parse_config(args["<config>"])
+
+    p_conf = config["progeny"]
+
+    progenitor = Progeny(**config["progeny"])
+    app.ctx["progenitor"] = progenitor
+
+    app.ctx["instances"] = {}
+
+    for identifier, params in config["instances"].items():
+        port, session_name = progenitor.spin(identifier=identifier, **params)
+        app.ctx["instances"]["identifier"] = {
+            "port": port,
+            "session_name": session_name,
+        }
 
     app.run(host="0.0.0.0", port=port, debug=True)
