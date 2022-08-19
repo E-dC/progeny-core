@@ -6,6 +6,7 @@ import ruamel.yaml as yaml
 from typing import Dict, List, Any, Optional
 from loguru import logger
 import sys
+import time
 
 from progeny_core.spinner import Progeny
 
@@ -197,18 +198,17 @@ def run(args):
 
     config = parse_config(args["<config>"])
 
-    p_conf = config["progeny"]
-
     progenitor = Progeny(**config["progeny"])
-    app.ctx["progenitor"] = progenitor
 
-    app.ctx["instances"] = {}
+    app.ctx.progenitor = progenitor
+    app.ctx.instances = {}
 
     for identifier, params in config["instances"].items():
         port, session_name = progenitor.spin(identifier=identifier, **params)
-        app.ctx["instances"]["identifier"] = {
+        app.ctx.instances["identifier"] = {
             "port": port,
             "session_name": session_name,
         }
+        time.sleep(1)
 
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(**config["app"])
