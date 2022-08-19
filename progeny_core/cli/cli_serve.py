@@ -62,8 +62,8 @@ def fetch(
     if json:
         payload = req.json
 
-    path = pathf.format(**kwargs)
-    url = f"{protocol}://{host}:{port}{path}"
+    path = pathf.format(**kwargs).lstrip("/")
+    url = f"{protocol}://{host}:{port}/{path}"
 
     if method == "get":
         return requests.get(url)
@@ -103,10 +103,9 @@ async def set_port_from_cookie(request):
     )
     logger.debug(request.ctx.log_info)
 
-
 @app.get("/start_session/<identifier>")
 def start_session(request, identifier):
-    res = sanic.response.redirect("/mylayerserver")
+    res = sanic.response.redirect(f"{app.ctx.reverse_proxy_path}/mylayerserver")
 
     res.cookies["progeny_identifier"] = identifier
     res.cookies["progeny_identifier"]["expires"] = datetime.datetime(
@@ -239,4 +238,5 @@ def run(args):
         }
         time.sleep(1)
 
+    app.ctx.reverse_proxy_path = config["app"].pop("reverse_proxy_path", "")
     app.run(**config["app"])
